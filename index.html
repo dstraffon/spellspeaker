@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spell Speaker²</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#b8b8b8;overflow:hidden;
+    font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    -webkit-tap-highlight-color:transparent}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{position:relative;width:1232px;height:750px;flex:none;transform-origin:center center}
+  svg{position:absolute;inset:0;font-family:inherit;user-select:none;-webkit-user-select:none;touch-action:none;overflow:visible}
+  #scope{position:absolute;left:283px;top:137px;width:862px;height:307px;border-radius:12px;pointer-events:none}
+  .ctl{cursor:ns-resize;outline:none}
+  .slot{cursor:pointer}
+  .focusring{opacity:0;transition:opacity .15s}
+  .ctl:focus-visible .focusring{opacity:1}
+  #toggle{cursor:pointer;outline:none}
+  #toggle:focus-visible #tgRing{opacity:1}
+  #tgRing{opacity:0}
+  #tgKnob{transition:transform .28s cubic-bezier(.5,1.5,.5,1)}
+  #tgChev{transform-box:fill-box;transform-origin:center;transition:transform .28s}
+  #tgLabel{transition:transform .28s}
+  #tgPill{transition:filter .3s}
+  .on #tgKnob{transform:translateX(-66px)}
+  .on #tgChev{transform:rotate(180deg)}
+  .on #tgLabel{transform:translateX(23px)}
+  .on #tgPill{filter:drop-shadow(0 0 6px rgba(255,140,40,.85))}
+  .cable{transform-box:view-box}
+  .on .cable{animation:sway 2.4s ease-in-out infinite alternate}
+  .on .cable:nth-child(2){animation-duration:2.9s;animation-delay:-.7s}
+  .on .cable:nth-child(3){animation-duration:2.1s;animation-delay:-1.3s}
+  .on .cable:nth-child(4){animation-duration:3.4s;animation-delay:-.4s}
+  @keyframes sway{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
+  .slotTint,.slotArc,.slotNum{transition:fill-opacity .2s,fill .2s}
+  #tuner{position:absolute;left:295px;top:394px;display:flex;align-items:center;gap:10px;
+    padding:6px 11px 6px 10px;border-radius:8px;background:rgba(22,22,22,.38);color:#e6e6e6;
+    opacity:.45;transition:opacity .4s;pointer-events:none;font-variant-numeric:tabular-nums}
+  .on #tuner{opacity:.9}
+  #tnNote{font-size:22px;font-weight:700;min-width:44px;letter-spacing:.02em;line-height:1}
+  #tnNote small{font-size:12px;font-weight:500;opacity:.7;margin-left:1px}
+  #tnMeter{position:relative;width:96px;height:10px}
+  #tnMeter i{position:absolute;top:3px;width:1px;height:4px;background:rgba(255,255,255,.28)}
+  #tnMeter i.c{top:0;height:10px;background:rgba(255,255,255,.55)}
+  #tnMeter:before{content:'';position:absolute;left:0;right:0;top:5px;height:1px;background:rgba(255,255,255,.18)}
+  #tnDot{position:absolute;top:1px;width:8px;height:8px;margin-left:-4px;border-radius:50%;
+    background:#e8802a;box-shadow:0 0 6px rgba(232,128,42,.8);transition:background .2s,box-shadow .2s}
+  #tnDot.ok{background:#8fd88a;box-shadow:0 0 7px rgba(143,216,138,.9)}
+  #tnRead{font-size:9.5px;opacity:.75;margin-top:4px;letter-spacing:.03em;white-space:nowrap}
+  #hint{position:absolute;left:0;right:0;top:688px;text-align:center;color:#4a4a4a;font-size:12.5px;letter-spacing:.03em;white-space:nowrap}
+  #hint b{color:#2e2e2e;font-weight:700}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+<svg id="panel" viewBox="0 0 1232 750" width="1232" height="750" aria-label="Spell Speaker synthesizer">
+  <defs>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#383838"/><stop offset="1" stop-color="#454545"/>
+    </linearGradient>
+    <linearGradient id="bigFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#242424"/><stop offset=".5" stop-color="#363636"/><stop offset="1" stop-color="#1f1f1f"/>
+    </linearGradient>
+    <radialGradient id="slotFace" cx="50%" cy="40%" r="60%">
+      <stop offset="0" stop-color="#303030"/><stop offset="1" stop-color="#262626"/>
+    </radialGradient>
+    <filter id="drop" x="-40%" y="-40%" width="180%" height="190%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <filter id="boxShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="-3" dy="9" stdDeviation="8" flood-color="#000" flood-opacity=".33"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- enclosure -->
+  <g filter="url(#boxShadow)">
+    <path d="M55 87 L1148 87 Q1156 87 1162 92 L1176 107 L80 107 Z" fill="#2a2a2a"/>
+    <path d="M55 87 L80 107 L80 660 L55 641 Z" fill="#2f2f2f"/>
+    <path d="M80 107 H1176 V650 Q1176 660 1166 660 H80 Z" fill="url(#front)"/>
+    <path d="M80 643 H1176 V650 Q1176 660 1166 660 H80 Z" fill="#4c4c4c" opacity=".55"/>
+  </g>
+  <ellipse cx="125" cy="96" rx="15" ry="4.5" fill="#1b1b1b"/>
+  <ellipse cx="168" cy="96" rx="15" ry="4.5" fill="#1b1b1b"/>
+  <ellipse cx="211" cy="96" rx="15" ry="4.5" fill="#1b1b1b"/>
+  <ellipse cx="1059" cy="97" rx="43" ry="5.5" fill="#1b1b1b"/>
+
+  <!-- cables -->
+  <g id="cables">
+    <g class="cable" style="transform-origin:125px 96px">
+      <path d="M122 -10 C 128 25, 133 60, 125 96" stroke="#c21c1c" stroke-width="9" fill="none"/>
+      <path d="M124 -10 C 130 25, 135 60, 127 94" stroke="#e66" stroke-width="1.6" fill="none" opacity=".55"/>
+    </g>
+    <g class="cable" style="transform-origin:168px 96px">
+      <path d="M166 -10 C 172 25, 176 60, 168 96" stroke="#1c2fc4" stroke-width="9" fill="none"/>
+      <path d="M168 -10 C 174 25, 178 60, 170 94" stroke="#6b7bff" stroke-width="1.6" fill="none" opacity=".55"/>
+    </g>
+    <g class="cable" style="transform-origin:211px 96px">
+      <path d="M207 -10 C 214 25, 220 60, 211 96" stroke="#18b445" stroke-width="9" fill="none"/>
+      <path d="M209 -10 C 216 25, 222 60, 213 94" stroke="#7ef0a0" stroke-width="1.6" fill="none" opacity=".5"/>
+    </g>
+    <g class="cable" style="transform-origin:1059px 97px">
+      <path d="M1046 -10 C 1066 22, 1072 42, 1062 66 S 1050 90, 1058 97" stroke="#121212" stroke-width="22" fill="none"/>
+      <path d="M1056 -10 C 1076 22, 1082 42, 1072 66 S 1060 90, 1068 96" stroke="#5a5a5a" stroke-width="2" fill="none" opacity=".6"/>
+    </g>
+  </g>
+
+  <!-- branding -->
+  <text x="98" y="167" font-size="19.2" font-weight="800" fill="#f2f2f2" letter-spacing=".3">SPELL SPEAKER</text>
+  <text x="252" y="153" font-size="8.5" font-weight="700" fill="#f2f2f2">2</text>
+  <text x="175" y="198" font-size="12.2" font-style="italic" fill="#e8e8e8" text-anchor="middle">Defragmenter</text>
+  <text x="178" y="214" font-size="12.2" font-style="italic" fill="#e8e8e8" text-anchor="middle">Enhancement Suite</text>
+
+  <!-- power toggle -->
+  <g id="toggle" role="switch" aria-checked="false" aria-label="Power and sound" tabindex="0">
+    <title>Power: flip on to animate the scope and hear it</title>
+    <rect id="tgRing" x="119" y="241" width="112" height="46" rx="23" fill="none" stroke="#fff" stroke-opacity=".4" stroke-dasharray="3 4"/>
+    <rect x="124" y="246" width="102" height="36" rx="18" fill="#262626"/>
+    <rect id="tgPill" x="127" y="249" width="96" height="30" rx="15" fill="#e8802a"/>
+    <text id="tgLabel" x="165" y="268.5" font-size="10.5" font-weight="500" fill="#fff" text-anchor="middle">off</text>
+    <g id="tgKnob">
+      <circle cx="208" cy="264" r="11.5" fill="#d8d8d8"/>
+      <path id="tgChev" d="M210 259 L205 264 L210 269" stroke="#9a9a9a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- scope screen -->
+  <rect x="283" y="137" width="862" height="307" rx="12" fill="#333" stroke="#2a2a2a" stroke-width="1.5"/>
+  <g id="grid" stroke="#4a4a4a" stroke-width=".7"></g>
+
+  <g id="controls"></g>
+</svg>
+<canvas id="scope" width="862" height="307"></canvas>
+<div id="tuner" aria-hidden="true">
+  <div id="tnNote">A<small>2</small></div>
+  <div>
+    <div id="tnMeter"><i style="left:0"></i><i style="left:25%"></i><i class="c" style="left:50%"></i><i style="left:75%"></i><i style="left:calc(100% - 1px)"></i><span id="tnDot" style="left:50%"></span></div>
+    <div id="tnRead">110.0 Hz · +0¢</div>
+  </div>
+</div>
+<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength &nbsp;·&nbsp; <b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; switch on for sound</div>
+</div></div>
+
+<script>
+(() => {
+const NS = 'http://www.w3.org/2000/svg', TAU = Math.PI * 2;
+const $ = id => document.getElementById(id);
+const stage = $('stage'), controls = $('controls'), cv = $('scope'), ctx = cv.getContext('2d');
+const SW = 862, SH = 307;
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const pt = (cx, cy, r, a) => { const t = a * Math.PI / 180; return [cx + r * Math.sin(t), cy - r * Math.cos(t)]; };
+function arcD(cx, cy, r, a0, a1) {
+  if (a1 - a0 < 0.5) return '';
+  const [x0, y0] = pt(cx, cy, r, a0), [x1, y1] = pt(cx, cy, r, a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+const clamp = v => Math.max(0, Math.min(1, v));
+
+// grid
+const grid = $('grid');
+for (let i = 1; i < 14; i++) { const x = 283 + i * SW / 14; el('line', { x1: x, y1: 138, x2: x, y2: 443 }, grid); }
+for (let j = 1; j < 5; j++) { const y = 137 + j * SH / 5; el('line', { x1: 284, y1: y, x2: 1144, y2: y }, grid); }
+
+// ---------- state ----------
+const P = { amp: .35, freq: .35, rust: .07, earth: .52, air: .10, dust: .68, width: .18, flux: .52, burn: .43 };
+const DEF = { ...P };
+const SLOT_COLORS = ['#b06a1c','#6e9e1e','#1c9c7c','#1c86a4','#2434b0','#5530b0','#9030ac','#ac1c90','#c21e1e','#1e52a6','#a6aa1c','#c0381c','#1e72aa','#c01e50'];
+const SLOT_DEF = [.5,.3,.22,.12,.45,.12,.2,.12,.5,.15,.42,.45,.1,.35];
+const slotLev = [...SLOT_DEF], slotOn = Array(14).fill(false);
+let on = false;
+
+// ---------- interaction ----------
+function bind(g, o) {
+  g.setAttribute('tabindex', '0');
+  g.classList.add('ctl');
+  let sx = 0, sy = 0, sv = 0, moved = false, id = null;
+  g.addEventListener('pointerdown', e => {
+    e.preventDefault(); g.focus({ preventScroll: true });
+    id = e.pointerId; g.setPointerCapture(id);
+    sx = e.clientX; sy = e.clientY; sv = o.get(); moved = false;
+  });
+  g.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    const d = (sy - e.clientY) + (e.clientX - sx) * 0.5;
+    if (Math.abs(d) > 3) moved = true;
+    if (moved) o.set(clamp(sv + d / (e.shiftKey ? 900 : 220)));
+  });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (!moved && o.tap && e.type === 'pointerup') o.tap();
+  };
+  g.addEventListener('pointerup', end);
+  g.addEventListener('pointercancel', end);
+  g.addEventListener('wheel', e => {
+    e.preventDefault();
+    const d = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * 0.0006 * (e.shiftKey ? .25 : 1);
+    o.set(clamp(o.get() - d));
+  }, { passive: false });
+  g.addEventListener('dblclick', () => o.set(o.def()));
+  g.addEventListener('keydown', e => {
+    const k = e.key; let d = 0;
+    if (k === 'ArrowUp' || k === 'ArrowRight') d = .01;
+    else if (k === 'ArrowDown' || k === 'ArrowLeft') d = -.01;
+    else if (k === 'PageUp') d = .1;
+    else if (k === 'PageDown') d = -.1;
+    else if (k === 'Home') { o.set(0); e.preventDefault(); return; }
+    else if (k === 'End') { o.set(1); e.preventDefault(); return; }
+    else if ((k === 'Enter' || k === ' ') && o.tap) { o.tap(); e.preventDefault(); return; }
+    else return;
+    e.preventDefault(); o.set(clamp(o.get() + d));
+  });
+}
+
+function bigKnob(key, cx, cy, color, name, tip) {
+  const g = el('g', { role: 'slider', 'aria-label': name, 'aria-valuemin': 0, 'aria-valuemax': 100 }, controls);
+  el('title', {}, g).textContent = tip;
+  el('circle', { cx, cy, r: 58, fill: 'transparent' }, g);
+  el('circle', { class: 'focusring', cx, cy, r: 58, fill: 'none', stroke: '#fff', 'stroke-opacity': .4, 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }, g);
+  el('circle', { cx, cy, r: 49, fill: 'url(#bigFace)', filter: 'url(#drop)' }, g);
+  const arc = el('path', { fill: 'none', stroke: color, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, g);
+  const dot = el('circle', { r: 3.6, fill: color }, g);
+  const txt = el('text', { x: cx, y: cy + 85, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: '#f2f2f2' }, g);
+  const draw = () => {
+    const v = P[key], a = -135 + 270 * v;
+    arc.setAttribute('d', arcD(cx, cy, 51.5, -135, a));
+    const [x, y] = pt(cx, cy, 38, a);
+    dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+    txt.textContent = Math.round(v * 100) + '%';
+    g.setAttribute('aria-valuenow', Math.round(v * 100));
+  };
+  bind(g, { get: () => P[key], set: v => { P[key] = v; draw(); }, def: () => DEF[key] });
+  draw();
+}
+
+function smallKnob(key, cx, label, tip) {
+  const cy = 549;
+  const g = el('g', { role: 'slider', 'aria-label': label, 'aria-valuemin': 0, 'aria-valuemax': 100 }, controls);
+  el('title', {}, g).textContent = tip;
+  el('rect', { x: cx - 50, y: cy - 38, width: 100, height: 108, fill: 'transparent' }, g);
+  el('circle', { class: 'focusring', cx, cy, r: 37, fill: 'none', stroke: '#fff', 'stroke-opacity': .4, 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }, g);
+  el('circle', { cx, cy, r: 30, fill: '#2b2826', stroke: '#bdbdbd', 'stroke-width': 3, filter: 'url(#drop)' }, g);
+  el('circle', { cx, cy, r: 28.2, fill: 'none', stroke: '#000', 'stroke-opacity': .3, 'stroke-width': 1 }, g);
+  const ptr = el('line', { stroke: '#cacaca', 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+  const txt = el('text', { x: cx, y: cy + 3.5, 'text-anchor': 'middle', 'font-size': 9.5, 'font-weight': 700, fill: '#eee' }, g);
+  el('text', { x: cx, y: 617, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 700, fill: '#f0f0f0', 'letter-spacing': .6 }, g).textContent = label;
+  const draw = () => {
+    const v = P[key], a = -135 + 270 * v;
+    const [x1, y1] = pt(cx, cy, 16.5, a), [x2, y2] = pt(cx, cy, 26.5, a);
+    ptr.setAttribute('x1', x1); ptr.setAttribute('y1', y1); ptr.setAttribute('x2', x2); ptr.setAttribute('y2', y2);
+    txt.textContent = Math.round(v * 100) + '%';
+    g.setAttribute('aria-valuenow', Math.round(v * 100));
+  };
+  bind(g, { get: () => P[key], set: v => { P[key] = v; draw(); }, def: () => DEF[key] });
+  draw();
+}
+
+function slot(i) {
+  const cx = 313.5 + i * 61.6, cy = 482, color = SLOT_COLORS[i];
+  const g = el('g', { role: 'slider', 'aria-valuemin': 0, 'aria-valuemax': 100 }, controls);
+  g.classList.add('slot');
+  el('title', {}, g).textContent = `Slot ${i + 1}: click to cast harmonic ×${i + 2}, drag or scroll to set its strength`;
+  el('circle', { cx, cy, r: 28, fill: 'transparent' }, g);
+  el('circle', { class: 'focusring', cx, cy, r: 28.5, fill: 'none', stroke: '#fff', 'stroke-opacity': .4, 'stroke-width': 1.2, 'stroke-dasharray': '3 4' }, g);
+  el('circle', { cx, cy, r: 21.5, fill: 'url(#slotFace)', filter: 'url(#drop)' }, g);
+  const tint = el('circle', { class: 'slotTint', cx, cy, r: 20.5, fill: color, 'fill-opacity': 0 }, g);
+  const arc = el('path', { class: 'slotArc', fill: 'none', stroke: color, 'stroke-width': 3, 'stroke-linecap': 'butt' }, g);
+  const num = el('text', { class: 'slotNum', x: cx, y: cy + 7, 'text-anchor': 'middle', 'font-size': 19.5, 'font-weight': 700, fill: '#efefef' }, g);
+  num.textContent = i + 1;
+  const draw = () => {
+    const v = slotLev[i];
+    arc.setAttribute('d', arcD(cx, cy, 22.8, -135, -135 + 270 * v));
+    tint.setAttribute('fill-opacity', slotOn[i] ? .32 : 0);
+    if (slotOn[i]) { arc.setAttribute('filter', 'url(#glow)'); num.setAttribute('filter', 'url(#glow)'); num.setAttribute('fill', '#fff'); }
+    else { arc.removeAttribute('filter'); num.removeAttribute('filter'); num.setAttribute('fill', '#efefef'); }
+    g.setAttribute('aria-valuenow', Math.round(v * 100));
+    g.setAttribute('aria-label', `Slot ${i + 1}, harmonic ${i + 2}, ${slotOn[i] ? 'cast' : 'idle'}`);
+  };
+  bind(g, {
+    get: () => slotLev[i],
+    set: v => { slotLev[i] = v; draw(); },
+    def: () => SLOT_DEF[i],
+    tap: () => { slotOn[i] = !slotOn[i]; draw(); }
+  });
+  draw();
+}
+
+bigKnob('amp', 175, 370, '#3a8df2', 'Amplitude', 'AMPLITUDE: how tall the wave is (and how loud)');
+bigKnob('freq', 175, 530, '#e8802a', 'Frequency', 'FREQUENCY: how many cycles fit on screen (and the pitch)');
+for (let i = 0; i < 14; i++) slot(i);
+const SMALL = [
+  ['rust', 'RUST', 'RUST: grit and static noise'],
+  ['earth', 'EARTH', 'EARTH: sub-octave weight (centre = none, either side flips it)'],
+  ['air', 'AIR', 'AIR: high shimmering overtone'],
+  ['dust', 'DUST', 'DUST: phosphor trails on screen, muffles the sound'],
+  ['width', 'WIDTH', 'WIDTH: stereo detune, shown as a ghost trace'],
+  ['flux', 'FLUX', 'FLUX: drift and wobble (centre = still, sides drift left or right)'],
+  ['burn', 'BURN', 'BURN: saturation drive, squares the wave off']
+];
+const SMALL_X = [344, 467.5, 590.5, 714, 837, 960, 1083.5];
+SMALL.forEach(([k, l, t], i) => smallKnob(k, SMALL_X[i], l, t));
+
+// ---------- power ----------
+const tg = $('toggle');
+function setPower(v) {
+  on = v;
+  stage.classList.toggle('on', on);
+  tg.setAttribute('aria-checked', on);
+  $('tgLabel').textContent = on ? 'on' : 'off';
+  on ? startAudio() : stopAudio();
+}
+tg.addEventListener('click', () => setPower(!on));
+tg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPower(!on); } });
+
+// ---------- signal ----------
+const cycles = () => Math.pow(2, (P.freq - .35) * 6);   // 35% = one cycle across the screen
+
+function harmSet(hz, sr) {
+  const ks = [], ws = []; let norm = 1;
+  for (let i = 0; i < 14; i++) {
+    if (!slotOn[i] || slotLev[i] <= 0) continue;
+    const k = i + 2;
+    if (sr && hz * k > sr * 0.45) continue;               // avoid aliasing in audio
+    const w = slotLev[i] * 0.85 / (1 + i * 0.12);
+    ks.push(k); ws.push(w); norm += w * 0.6;
+  }
+  return { ks, ws, norm, n: ks.length };
+}
+
+function sample(ph, t, noise, H) {
+  let s = Math.sin(ph);
+  for (let j = 0; j < H.n; j++) s += H.ws[j] * Math.sin(H.ks[j] * ph);
+  s /= H.norm;
+  s += (P.earth - .5) * 2 * 0.55 * Math.sin(ph * 0.5);
+  const a = P.air * P.air;
+  if (a > 0) s += a * 0.35 * Math.sin(ph * 13 + t * 9) * (0.6 + 0.4 * Math.sin(t * 3.1));
+  s += P.rust * P.rust * 0.6 * noise;
+  const x = s * P.amp * 2;
+  const d = 0.02 + Math.pow(P.burn, 3) * 10;
+  return Math.tanh(x * d) / Math.tanh(d);
+}
+
+// ---------- audio ----------
+// The DSP runs on the audio thread (AudioWorklet), so screen drawing can't starve it.
+const WORKLET_SRC = `
+const TAU = Math.PI * 2;
+class SpellSpeaker extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    this.p = null; this.phL = 0; this.phR = 0; this.t = 0; this.lpL = 0; this.lpR = 0;
+    this.s = null;                       // smoothed params
+    this.port.onmessage = e => { this.p = e.data; if (!this.s) this.s = Object.assign({}, e.data); };
+    const init = options && options.processorOptions && options.processorOptions.params;
+    if (init) { this.p = init; this.s = Object.assign({}, init); }
+  }
+  process(inputs, outputs) {
+    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length;
+    const p = this.p;
+    if (!p) { L.fill(0); if (R !== L) R.fill(0); return true; }
+    const s = this.s, sr = sampleRate, keys = ['amp','hz','rust','earth','air','dust','width','flux','burn'];
+    // harmonics, dropping any that would alias
+    const ks = [], ws = []; let norm = 1;
+    for (let j = 0; j < p.ks.length; j++) {
+      if (p.hz * p.ks[j] > sr * 0.45) continue;
+      ks.push(p.ks[j]); ws.push(p.ws[j]); norm += p.ws[j] * 0.6;
+    }
+    if (s.norm === undefined) s.norm = norm;
+    const wrap = TAU * 2;
+    for (let i = 0; i < n; i++) {
+      // glide every parameter so knob moves never step
+      for (let k = 0; k < keys.length; k++) { const key = keys[k]; s[key] += (p[key] - s[key]) * 0.0015; }
+      s.norm += (norm - s.norm) * 0.0015;
+      this.t += 1 / sr;
+      const t = this.t, f = (s.flux - .5) * 2;
+      const m = 1 + Math.abs(f) * 0.025 * Math.sin(TAU * 5.5 * t);
+      this.phL += TAU * s.hz * m / sr;
+      this.phR += TAU * s.hz * m * (1 + s.width * 0.015) / sr;
+      if (this.phL > wrap) this.phL -= wrap;
+      if (this.phR > wrap) this.phR -= wrap;
+      const a = this.sample(this.phL, t, s, ks, ws);
+      const b = this.sample(this.phR, t, s, ks, ws);
+      const kk = 1 - s.dust * 0.85;
+      this.lpL += (a - this.lpL) * kk;
+      this.lpR += ((a + (b - a) * s.width) - this.lpR) * kk;
+      L[i] = Math.max(-1.5, Math.min(1.5, this.lpL));
+      if (R !== L) R[i] = Math.max(-1.5, Math.min(1.5, this.lpR));
+    }
+    return true;
+  }
+  sample(ph, t, s, ks, ws) {
+    let v = Math.sin(ph);
+    for (let j = 0; j < ks.length; j++) v += ws[j] * Math.sin(ks[j] * ph);
+    v /= s.norm;
+    v += (s.earth - .5) * 2 * 0.55 * Math.sin(ph * 0.5);
+    const a = s.air * s.air;
+    if (a > 0) v += a * 0.35 * Math.sin(ph * 13 + t * 9) * (0.6 + 0.4 * Math.sin(t * 3.1));
+    v += s.rust * s.rust * 0.6 * (Math.random() * 2 - 1);
+    const x = v * s.amp * 2;
+    const d = 0.02 + Math.pow(s.burn, 3) * 10;
+    return Math.tanh(x * d) / Math.tanh(d);
+  }
+}
+registerProcessor('spell-speaker', SpellSpeaker);
+`;
+
+let ac = null, gain = null, node = null, mode = null, building = null, suspendTimer = null;
+
+function audioParams() {
+  const ks = [], ws = [];
+  for (let i = 0; i < 14; i++) {
+    if (!slotOn[i] || slotLev[i] <= 0) continue;
+    ks.push(i + 2); ws.push(slotLev[i] * 0.85 / (1 + i * 0.12));
+  }
+  return { amp: P.amp, hz: 110 * cycles(), rust: P.rust, earth: P.earth, air: P.air, dust: P.dust,
+           width: P.width, flux: P.flux, burn: P.burn, ks, ws };
+}
+function postParams() { if (mode === 'worklet' && node) node.port.postMessage(audioParams()); }
+
+// Fallback for browsers without AudioWorklet: main-thread processor with a large buffer.
+let phL = 0, phR = 0, at = 0, lpL = 0, lpR = 0;
+function process(e) {
+  const L = e.outputBuffer.getChannelData(0), R = e.outputBuffer.getChannelData(1);
+  const sr = ac.sampleRate, n = L.length;
+  const hz = 110 * cycles(), H = harmSet(hz, sr);
+  const f = (P.flux - .5) * 2, vib = Math.abs(f) * 0.025, det = 1 + P.width * 0.015, w = P.width;
+  const k = 1 - P.dust * 0.85, wrap = TAU * 2;
+  for (let i = 0; i < n; i++) {
+    at += 1 / sr;
+    const m = 1 + vib * Math.sin(TAU * 5.5 * at);
+    phL += TAU * hz * m / sr; phR += TAU * hz * m * det / sr;
+    if (phL > wrap) phL -= wrap;
+    if (phR > wrap) phR -= wrap;
+    const a = sample(phL, at, Math.random() * 2 - 1, H);
+    const b = sample(phR, at, Math.random() * 2 - 1, H);
+    lpL += (a - lpL) * k;
+    lpR += ((a + (b - a) * w) - lpR) * k;
+    L[i] = Math.max(-1.5, Math.min(1.5, lpL));
+    R[i] = Math.max(-1.5, Math.min(1.5, lpR));
+  }
+}
+
+async function buildGraph() {
+  ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+  gain = ac.createGain(); gain.gain.value = 0; gain.connect(ac.destination);
+  try {
+    const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+    await ac.audioWorklet.addModule(url);
+    node = new AudioWorkletNode(ac, 'spell-speaker', { numberOfInputs: 0, outputChannelCount: [2],
+      processorOptions: { params: audioParams() } });
+    mode = 'worklet';
+    postParams();
+  } catch (err) {
+    node = ac.createScriptProcessor(4096, 1, 2);
+    node.onaudioprocess = process;
+    mode = 'script';
+  }
+  node.connect(gain);
+}
+
+function startAudio() {
+  try {
+    clearTimeout(suspendTimer);
+    if (!ac) building = buildGraph();
+    ac.resume();                                   // inside the click, so autoplay rules allow it
+    building.then(() => {
+      if (!on) return;
+      postParams();
+      gain.gain.cancelScheduledValues(ac.currentTime);
+      gain.gain.setTargetAtTime(0.18, ac.currentTime, 0.04);
+    }).catch(() => {});
+  } catch (err) { /* audio unavailable: visuals still run */ }
+}
+function stopAudio() {
+  if (!ac || !gain) return;
+  try {
+    gain.gain.cancelScheduledValues(ac.currentTime);
+    gain.gain.setTargetAtTime(0, ac.currentTime, 0.03);
+    suspendTimer = setTimeout(() => { if (!on) ac.suspend(); }, 300);
+  } catch (err) {}
+}
+
+// ---------- scope ----------
+let dpr = 1, scroll = 0, tv = 0, ghost = 0, seed = 0, last = performance.now();
+const hn = i => { const s = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453; return (s - Math.floor(s)) * 2 - 1; };
+
+function trace(H, cyc, phOff, mult, alpha, lw, blur) {
+  const x0 = 4, x1 = SW - 4, span = x1 - x0, mid = SH / 2, sc = mid * 0.9;
+  ctx.beginPath();
+  for (let x = x0; x <= x1; x += 1) {
+    const ph = scroll + phOff + TAU * cyc * mult * (x - x0) / span;
+    const y = mid - sample(ph, tv, hn(x), H) * sc;
+    x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = `rgba(234,130,42,${alpha})`;
+  ctx.lineWidth = lw;
+  ctx.shadowColor = 'rgba(255,140,40,0.9)';
+  ctx.shadowBlur = blur * dpr;
+  ctx.stroke();
+}
+
+function drawScope() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = `rgba(0,0,0,${1 - P.dust * 0.9})`;
+  ctx.fillRect(0, 0, SW, SH);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const H = harmSet(), f = (P.flux - .5) * 2;
+  const cyc = cycles() * (on ? 1 + Math.abs(f) * 0.02 * Math.sin(tv * 5.5) : 1);
+  const ga = Math.pow(P.width, 1.6) * 0.75;
+  if (ga > 0.01) trace(H, cyc, P.width * 1.4 + ghost, 1 + P.width * 0.04, ga, 3, 6);
+  trace(H, cyc, 0, 1, 1, 4.6, on ? 14 : 9);
+}
+
+
+// ---------- tuner ----------
+const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const tnNote = $('tnNote'), tnDot = $('tnDot'), tnRead = $('tnRead');
+let tnLast = '';
+function updateTuner() {
+  let hz = 110 * cycles();
+  if (on) hz *= 1 + Math.abs((P.flux - .5) * 2) * 0.025 * Math.sin(TAU * 5.5 * tv);   // show FLUX vibrato
+  const midi = 69 + 12 * Math.log2(hz / 440), near = Math.round(midi);
+  const cents = Math.round((midi - near) * 100);
+  const name = NOTE_NAMES[((near % 12) + 12) % 12], oct = Math.floor(near / 12) - 1;
+  const key = name + oct + '|' + cents + '|' + hz.toFixed(1);
+  if (key === tnLast) return;
+  tnLast = key;
+  tnNote.innerHTML = name + '<small>' + oct + '</small>';
+  tnDot.style.left = (50 + cents) + '%';
+  tnDot.classList.toggle('ok', Math.abs(cents) <= 5);
+  tnRead.textContent = (hz < 100 ? hz.toFixed(1) : hz.toFixed(hz < 1000 ? 1 : 0)) + ' Hz · ' + (cents >= 0 ? '+' : '−') + Math.abs(cents) + '¢';
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (on) {
+    const f = (P.flux - .5) * 2;
+    scroll += dt * f * 3;
+    tv += dt;
+    ghost += dt * P.width * 1.5;
+    seed = (seed + 1) % 997;
+    postParams();
+  }
+  drawScope();
+  updateTuner();
+  requestAnimationFrame(frame);
+}
+
+function fit() {
+  const s = Math.min(innerWidth / 1232, innerHeight / 750);
+  stage.style.transform = `scale(${s})`;
+  dpr = Math.min(3, Math.max(1, s * (window.devicePixelRatio || 1)));
+  cv.width = Math.round(SW * dpr); cv.height = Math.round(SH * dpr);
+}
+addEventListener('resize', fit);
+fit();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
