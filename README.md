@@ -1,5 +1,5 @@
 # spellspeaker
-Wavetable too
+Wavetable tool
 
 **Spell Speaker² — Defragmenter Enhancement Suite** is an imaginary hardware synth box that actually works. Each knob reshapes the waveform on the scope, and when you flip the switch on it plays what you see.
 
