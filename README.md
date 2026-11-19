@@ -17,7 +17,8 @@ To serve it locally instead: `python3 -m http.server` and visit `http://localhos
 
 | Control | What it does |
 | --- | --- |
-| **Power switch** | Starts the scope moving, the cables swaying and the sound playing |
+| **Power switch** | Starts the scope moving, the cables swaying and the sound playing. Dark when off, orange when on |
+| **Dice button** (or press **R**) | Rolls random settings: every knob sweeps to a new value and a few slots get cast |
 | **Blue knob** (amplitude) | Height of the wave and how loud it is |
 | **Orange knob** (frequency) | Cycles on screen and the pitch. 35% = one cycle at A2 (110 Hz) |
 | **Slots 1–14** | Click to add a harmonic (slot *n* adds harmonic ×*n*+1). Drag a slot to set its strength |

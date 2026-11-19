@@ -24,7 +24,22 @@
   #tgKnob{transition:transform .28s cubic-bezier(.5,1.5,.5,1)}
   #tgChev{transform-box:fill-box;transform-origin:center;transition:transform .28s}
   #tgLabel{transition:transform .28s}
-  #tgPill{transition:filter .3s}
+  #tgPill{fill:#1a1a1a;transition:filter .3s,fill .3s}
+  #tgLabel{fill:#8c8c8c}
+  #tgFace{fill:#8f8f8f;transition:fill .3s}
+  #tgChev{stroke:#5a5a5a}
+  .on #tgPill{fill:#e8802a}
+  .on #tgLabel{fill:#fff}
+  .on #tgFace{fill:#d8d8d8}
+  .on #tgChev{stroke:#9a9a9a}
+  #dice{cursor:pointer;outline:none}
+  #dice:focus-visible #diceRing{opacity:1}
+  #diceRing{opacity:0}
+  #diceCap{transition:transform .08s}
+  #dice:active #diceCap,#dice:active #diceIcon{transform:translateY(1px)}
+  #diceIcon{transform-box:fill-box;transform-origin:center}
+  #diceIcon.roll{animation:roll .5s cubic-bezier(.3,1.4,.5,1)}
+  @keyframes roll{from{transform:rotate(-200deg) scale(.8)}to{transform:rotate(0) scale(1)}}
   .on #tgKnob{transform:translateX(-66px)}
   .on #tgChev{transform:rotate(180deg)}
   .on #tgLabel{transform:translateX(23px)}
@@ -50,7 +65,7 @@
     background:#e8802a;box-shadow:0 0 6px rgba(232,128,42,.8);transition:background .2s,box-shadow .2s}
   #tnDot.ok{background:#8fd88a;box-shadow:0 0 7px rgba(143,216,138,.9)}
   #tnRead{font-size:9.5px;opacity:.75;margin-top:4px;letter-spacing:.03em;white-space:nowrap}
-  #hint{position:absolute;left:0;right:0;top:688px;text-align:center;color:#4a4a4a;font-size:12.5px;letter-spacing:.03em;white-space:nowrap}
+  #hint{position:absolute;left:0;right:0;top:676px;text-align:center;color:#4a4a4a;font-size:12px;letter-spacing:.03em;line-height:1.7;white-space:nowrap}
   #hint b{color:#2e2e2e;font-weight:700}
 </style>
 </head>
@@ -118,15 +133,29 @@
   <text x="178" y="214" font-size="12.2" font-style="italic" fill="#e8e8e8" text-anchor="middle">Enhancement Suite</text>
 
   <!-- power toggle -->
-  <g id="toggle" role="switch" aria-checked="false" aria-label="Power and sound" tabindex="0">
+  <g id="toggle" transform="translate(-22 0)" role="switch" aria-checked="false" aria-label="Power and sound" tabindex="0">
     <title>Power: flip on to animate the scope and hear it</title>
     <rect id="tgRing" x="119" y="241" width="112" height="46" rx="23" fill="none" stroke="#fff" stroke-opacity=".4" stroke-dasharray="3 4"/>
     <rect x="124" y="246" width="102" height="36" rx="18" fill="#262626"/>
-    <rect id="tgPill" x="127" y="249" width="96" height="30" rx="15" fill="#e8802a"/>
-    <text id="tgLabel" x="165" y="268.5" font-size="10.5" font-weight="500" fill="#fff" text-anchor="middle">off</text>
+    <rect id="tgPill" x="127" y="249" width="96" height="30" rx="15"/>
+    <text id="tgLabel" x="165" y="268.5" font-size="10.5" font-weight="500" text-anchor="middle">off</text>
     <g id="tgKnob">
-      <circle cx="208" cy="264" r="11.5" fill="#d8d8d8"/>
-      <path id="tgChev" d="M210 259 L205 264 L210 269" stroke="#9a9a9a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <circle id="tgFace" cx="208" cy="264" r="11.5"/>
+      <path id="tgChev" d="M210 259 L205 264 L210 269" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- random settings -->
+  <g id="dice" transform="translate(-22 0)" role="button" tabindex="0" aria-label="Random settings">
+    <title>Random settings (or press R)</title>
+    <circle id="diceRing" cx="253" cy="264" r="21" fill="none" stroke="#fff" stroke-opacity=".4" stroke-dasharray="3 4"/>
+    <circle cx="253" cy="264" r="17" fill="#262626"/>
+    <circle id="diceCap" cx="253" cy="264" r="14" fill="url(#bigFace)" filter="url(#drop)"/>
+    <g id="diceIcon">
+      <rect x="246" y="257" width="14" height="14" rx="3.2" fill="none" stroke="#d6d6d6" stroke-width="1.4"/>
+      <circle cx="249.6" cy="260.6" r="1.25" fill="#e8802a"/><circle cx="256.4" cy="260.6" r="1.25" fill="#d6d6d6"/>
+      <circle cx="253" cy="264" r="1.25" fill="#d6d6d6"/>
+      <circle cx="249.6" cy="267.4" r="1.25" fill="#d6d6d6"/><circle cx="256.4" cy="267.4" r="1.25" fill="#e8802a"/>
     </g>
   </g>
 
@@ -144,7 +173,7 @@
     <div id="tnRead">110.0 Hz · +0¢</div>
   </div>
 </div>
-<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength &nbsp;·&nbsp; <b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; switch on for sound</div>
+<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength <br><b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; <b>dice</b> or <b>R</b> randomizes &nbsp;·&nbsp; switch on for sound</div>
 </div></div>
 
 <script>
@@ -179,6 +208,7 @@ const DEF = { ...P };
 const SLOT_COLORS = ['#b06a1c','#6e9e1e','#1c9c7c','#1c86a4','#2434b0','#5530b0','#9030ac','#ac1c90','#c21e1e','#1e52a6','#a6aa1c','#c0381c','#1e72aa','#c01e50'];
 const SLOT_DEF = [.5,.3,.22,.12,.45,.12,.2,.12,.5,.15,.42,.45,.1,.35];
 const slotLev = [...SLOT_DEF], slotOn = Array(14).fill(false);
+const setters = {}, slotSetters = [];
 let on = false;
 
 // ---------- interaction ----------
@@ -241,7 +271,8 @@ function bigKnob(key, cx, cy, color, name, tip) {
     txt.textContent = Math.round(v * 100) + '%';
     g.setAttribute('aria-valuenow', Math.round(v * 100));
   };
-  bind(g, { get: () => P[key], set: v => { P[key] = v; draw(); }, def: () => DEF[key] });
+  setters[key] = v => { P[key] = v; draw(); };
+  bind(g, { get: () => P[key], set: setters[key], def: () => DEF[key] });
   draw();
 }
 
@@ -263,7 +294,8 @@ function smallKnob(key, cx, label, tip) {
     txt.textContent = Math.round(v * 100) + '%';
     g.setAttribute('aria-valuenow', Math.round(v * 100));
   };
-  bind(g, { get: () => P[key], set: v => { P[key] = v; draw(); }, def: () => DEF[key] });
+  setters[key] = v => { P[key] = v; draw(); };
+  bind(g, { get: () => P[key], set: setters[key], def: () => DEF[key] });
   draw();
 }
 
@@ -288,6 +320,7 @@ function slot(i) {
     g.setAttribute('aria-valuenow', Math.round(v * 100));
     g.setAttribute('aria-label', `Slot ${i + 1}, harmonic ${i + 2}, ${slotOn[i] ? 'cast' : 'idle'}`);
   };
+  slotSetters[i] = (v, o) => { slotLev[i] = v; if (o !== undefined) slotOn[i] = o; draw(); };
   bind(g, {
     get: () => slotLev[i],
     set: v => { slotLev[i] = v; draw(); },
@@ -323,6 +356,39 @@ function setPower(v) {
 }
 tg.addEventListener('click', () => setPower(!on));
 tg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPower(!on); } });
+
+// ---------- random settings ----------
+const rnd = (a, b) => a + Math.random() * (b - a);
+const RANGES = {                       // kept musical: nothing deafening or silent
+  amp: [.22, .55], freq: [.15, .75], rust: [0, .3], earth: [.2, .8], air: [0, .55],
+  dust: [0, .9], width: [0, .7], flux: [.2, .8], burn: [0, .75]
+};
+let tween = null;
+function randomize() {
+  const from = { ...P }, to = {};
+  for (const k in RANGES) to[k] = rnd(...RANGES[k]);
+  to.rust = Math.pow(Math.random(), 2) * RANGES.rust[1];            // mostly clean, sometimes gritty
+  const lFrom = [...slotLev], lTo = [], oTo = [];
+  const want = Math.random() < .2 ? 0 : 1 + Math.floor(Math.random() * 5);   // 0–5 slots cast
+  const pick = new Set();
+  while (pick.size < want) pick.add(Math.floor(Math.random() * 14));
+  for (let i = 0; i < 14; i++) { lTo[i] = rnd(.1, .9); oTo[i] = pick.has(i); slotSetters[i](slotLev[i], oTo[i]); }
+  const icon = $('diceIcon');
+  icon.classList.remove('roll'); void icon.getBBox(); icon.classList.add('roll');
+  const t0 = performance.now(), dur = 520;
+  tween = now => {
+    const u = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - u, 3);
+    for (const k in to) setters[k](from[k] + (to[k] - from[k]) * e);
+    for (let i = 0; i < 14; i++) slotSetters[i](lFrom[i] + (lTo[i] - lFrom[i]) * e);
+    if (u >= 1) tween = null;
+  };
+}
+const dice = $('dice');
+dice.addEventListener('click', randomize);
+dice.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); randomize(); } });
+addEventListener('keydown', e => {
+  if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) randomize();
+});
 
 // ---------- signal ----------
 const cycles = () => Math.pow(2, (P.freq - .35) * 6);   // 35% = one cycle across the screen
@@ -546,6 +612,7 @@ function updateTuner() {
 }
 
 function frame(now) {
+  if (tween) tween(now);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (on) {
     const f = (P.flux - .5) * 2;
