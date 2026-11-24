@@ -45,16 +45,20 @@
   .on #tgLabel{transform:translateX(23px)}
   .on #tgPill{filter:drop-shadow(0 0 6px rgba(255,140,40,.85))}
   .cable{transform-box:view-box}
-  .on .cable{animation:sway 2.4s ease-in-out infinite alternate}
-  .on .cable:nth-child(2){animation-duration:2.9s;animation-delay:-.7s}
-  .on .cable:nth-child(3){animation-duration:2.1s;animation-delay:-1.3s}
-  .on .cable:nth-child(4){animation-duration:3.4s;animation-delay:-.4s}
+  .live .cable{animation:sway 2.4s ease-in-out infinite alternate}
+  .live .cable:nth-child(2){animation-duration:2.9s;animation-delay:-.7s}
+  .live .cable:nth-child(3){animation-duration:2.1s;animation-delay:-1.3s}
+  .live .cable:nth-child(4){animation-duration:3.4s;animation-delay:-.4s}
   @keyframes sway{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
   .slotTint,.slotArc,.slotNum{transition:fill-opacity .2s,fill .2s}
   #tuner{position:absolute;left:295px;top:394px;display:flex;align-items:center;gap:10px;
     padding:6px 11px 6px 10px;border-radius:8px;background:rgba(22,22,22,.38);color:#e6e6e6;
     opacity:.45;transition:opacity .4s;pointer-events:none;font-variant-numeric:tabular-nums}
-  .on #tuner{opacity:.9}
+  .live #tuner{opacity:.9}
+  #keys{position:absolute;left:295px;top:149px;padding:5px 10px;border-radius:8px;background:rgba(22,22,22,.38);
+    color:#e6e6e6;font-size:10px;letter-spacing:.06em;opacity:0;transition:opacity .35s;pointer-events:none;white-space:nowrap}
+  #keys.show{opacity:.9}
+  #keys b{color:#e8802a;font-weight:700}
   #tnNote{font-size:22px;font-weight:700;min-width:44px;letter-spacing:.02em;line-height:1}
   #tnNote small{font-size:12px;font-weight:500;opacity:.7;margin-left:1px}
   #tnMeter{position:relative;width:96px;height:10px}
@@ -65,7 +69,7 @@
     background:#e8802a;box-shadow:0 0 6px rgba(232,128,42,.8);transition:background .2s,box-shadow .2s}
   #tnDot.ok{background:#8fd88a;box-shadow:0 0 7px rgba(143,216,138,.9)}
   #tnRead{font-size:9.5px;opacity:.75;margin-top:4px;letter-spacing:.03em;white-space:nowrap}
-  #hint{position:absolute;left:0;right:0;top:676px;text-align:center;color:#4a4a4a;font-size:12px;letter-spacing:.03em;line-height:1.7;white-space:nowrap}
+  #hint{position:absolute;left:0;right:0;top:670px;text-align:center;color:#4a4a4a;font-size:12px;letter-spacing:.03em;line-height:1.7;white-space:nowrap}
   #hint b{color:#2e2e2e;font-weight:700}
 </style>
 </head>
@@ -166,6 +170,7 @@
   <g id="controls"></g>
 </svg>
 <canvas id="scope" width="862" height="307"></canvas>
+<div id="keys" aria-live="polite">KEYS · OCT <b>3</b> · C3–D4</div>
 <div id="tuner" aria-hidden="true">
   <div id="tnNote">A<small>2</small></div>
   <div>
@@ -173,7 +178,7 @@
     <div id="tnRead">110.0 Hz · +0¢</div>
   </div>
 </div>
-<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength <br><b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; <b>dice</b> or <b>R</b> randomizes &nbsp;·&nbsp; switch on for sound</div>
+<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength <br><b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; <b>dice</b> or <b>R</b> randomizes &nbsp;·&nbsp; switch on for sound<br><b>A–L</b> play notes, <b>W E T Y U O</b> sharps &nbsp;·&nbsp; <b>Z</b> / <b>X</b> octave down / up &nbsp;·&nbsp; click the page first so it hears your keys</div>
 </div></div>
 
 <script>
@@ -209,7 +214,9 @@ const SLOT_COLORS = ['#b06a1c','#6e9e1e','#1c9c7c','#1c86a4','#2434b0','#5530b0'
 const SLOT_DEF = [.5,.3,.22,.12,.45,.12,.2,.12,.5,.15,.42,.45,.1,.35];
 const slotLev = [...SLOT_DEF], slotOn = Array(14).fill(false);
 const setters = {}, slotSetters = [];
-let on = false;
+let on = false, live = false;
+const held = [];                       // computer-keyboard notes currently down, newest last
+function updateLive() { live = on || held.length > 0; stage.classList.toggle('live', live); }
 
 // ---------- interaction ----------
 function bind(g, o) {
@@ -352,7 +359,8 @@ function setPower(v) {
   stage.classList.toggle('on', on);
   tg.setAttribute('aria-checked', on);
   $('tgLabel').textContent = on ? 'on' : 'off';
-  on ? startAudio() : stopAudio();
+  updateLive();
+  wantSound() ? startAudio() : stopAudio();
 }
 tg.addEventListener('click', () => setPower(!on));
 tg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPower(!on); } });
@@ -389,6 +397,60 @@ dice.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') 
 addEventListener('keydown', e => {
   if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) randomize();
 });
+
+// ---------- computer keyboard as a MIDI keyboard ----------
+// Physical key positions (e.code), so it works on any layout. A = C, W = C#, ... L = D above.
+const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7,
+                 KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13, KeyL: 14 };
+const OCT_MIN = 1, OCT_MAX = 5;        // keeps every key inside the frequency knob's range
+let octave = 3, keysTimer = null;
+const midiName = m => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+function showKeys() {
+  const lo = (octave + 1) * 12, el = $('keys');
+  el.innerHTML = `KEYS · OCT <b>${octave}</b> · ${midiName(lo)}–${midiName(lo + 14)}` +
+    (held.length ? ` · ♪ <b>${midiName(held[held.length - 1].midi)}</b>` : '');
+  el.classList.add('show');
+  clearTimeout(keysTimer);
+  if (!held.length) keysTimer = setTimeout(() => el.classList.remove('show'), 1600);
+}
+function playMidi(m) {
+  const hz = 440 * Math.pow(2, (m - 69) / 12);
+  setters.freq(clamp(.35 + Math.log2(hz / 110) / 6));   // turns the frequency knob to the note
+  postParams();
+}
+function noteOn(code) {
+  const i = held.findIndex(h => h.code === code);
+  if (i >= 0) held.splice(i, 1);
+  const midi = (octave + 1) * 12 + KEYMAP[code];
+  held.push({ code, midi });
+  playMidi(midi);
+  updateLive();
+  startAudio(0.008);
+  showKeys();
+}
+function noteOff(code) {
+  const i = held.findIndex(h => h.code === code);
+  if (i < 0) return;
+  held.splice(i, 1);
+  if (held.length) playMidi(held[held.length - 1].midi);   // fall back to the key still held
+  updateLive();
+  if (!wantSound()) stopAudio(0.07, 3000);
+  showKeys();
+}
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const c = e.code;
+  if (c === 'KeyZ' || c === 'KeyX') {
+    e.preventDefault();
+    if (!e.repeat) { octave = Math.max(OCT_MIN, Math.min(OCT_MAX, octave + (c === 'KeyX' ? 1 : -1))); showKeys(); }
+    return;
+  }
+  if (!(c in KEYMAP)) return;
+  e.preventDefault();
+  if (!e.repeat) noteOn(c);
+});
+addEventListener('keyup', e => { if (e.code in KEYMAP) noteOff(e.code); });
+addEventListener('blur', () => { while (held.length) noteOff(held[held.length - 1].code); });
 
 // ---------- signal ----------
 const cycles = () => Math.pow(2, (P.freq - .35) * 6);   // 35% = one cycle across the screen
@@ -535,25 +597,27 @@ async function buildGraph() {
   node.connect(gain);
 }
 
-function startAudio() {
+const wantSound = () => on || held.length > 0;
+function startAudio(tc = 0.04) {
   try {
     clearTimeout(suspendTimer);
     if (!ac) building = buildGraph();
     ac.resume();                                   // inside the click, so autoplay rules allow it
     building.then(() => {
-      if (!on) return;
+      if (!wantSound()) return;
       postParams();
       gain.gain.cancelScheduledValues(ac.currentTime);
-      gain.gain.setTargetAtTime(0.18, ac.currentTime, 0.04);
+      gain.gain.setTargetAtTime(0.18, ac.currentTime, tc);
     }).catch(() => {});
   } catch (err) { /* audio unavailable: visuals still run */ }
 }
-function stopAudio() {
+function stopAudio(tc = 0.03, idle = 300) {
   if (!ac || !gain) return;
   try {
+    clearTimeout(suspendTimer);
     gain.gain.cancelScheduledValues(ac.currentTime);
-    gain.gain.setTargetAtTime(0, ac.currentTime, 0.03);
-    suspendTimer = setTimeout(() => { if (!on) ac.suspend(); }, 300);
+    gain.gain.setTargetAtTime(0, ac.currentTime, tc);
+    suspendTimer = setTimeout(() => { if (!wantSound()) ac.suspend(); }, idle);
   } catch (err) {}
 }
 
@@ -585,10 +649,10 @@ function drawScope() {
   ctx.globalCompositeOperation = 'source-over';
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const H = harmSet(), f = (P.flux - .5) * 2;
-  const cyc = cycles() * (on ? 1 + Math.abs(f) * 0.02 * Math.sin(tv * 5.5) : 1);
+  const cyc = cycles() * (live ? 1 + Math.abs(f) * 0.02 * Math.sin(tv * 5.5) : 1);
   const ga = Math.pow(P.width, 1.6) * 0.75;
   if (ga > 0.01) trace(H, cyc, P.width * 1.4 + ghost, 1 + P.width * 0.04, ga, 3, 6);
-  trace(H, cyc, 0, 1, 1, 4.6, on ? 14 : 9);
+  trace(H, cyc, 0, 1, 1, 4.6, live ? 14 : 9);
 }
 
 
@@ -598,7 +662,7 @@ const tnNote = $('tnNote'), tnDot = $('tnDot'), tnRead = $('tnRead');
 let tnLast = '';
 function updateTuner() {
   let hz = 110 * cycles();
-  if (on) hz *= 1 + Math.abs((P.flux - .5) * 2) * 0.025 * Math.sin(TAU * 5.5 * tv);   // show FLUX vibrato
+  if (live) hz *= 1 + Math.abs((P.flux - .5) * 2) * 0.025 * Math.sin(TAU * 5.5 * tv);   // show FLUX vibrato
   const midi = 69 + 12 * Math.log2(hz / 440), near = Math.round(midi);
   const cents = Math.round((midi - near) * 100);
   const name = NOTE_NAMES[((near % 12) + 12) % 12], oct = Math.floor(near / 12) - 1;
@@ -614,7 +678,7 @@ function updateTuner() {
 function frame(now) {
   if (tween) tween(now);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (on) {
+  if (live) {
     const f = (P.flux - .5) * 2;
     scroll += dt * f * 3;
     tv += dt;

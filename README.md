@@ -33,6 +33,21 @@ To serve it locally instead: `python3 -m http.server` and visit `http://localhos
 
 **Interaction:** drag or scroll any knob, hold Shift for fine control, double-click to reset. Every control also works from the keyboard: Tab to focus, arrow keys to adjust, Home and End for the extremes, Enter or Space to toggle a slot.
 
+## Play it like a keyboard
+
+Click the page once so it hears your keys, then use your computer keyboard as a little MIDI keyboard:
+
+```
+  W E   T Y U   O        ← sharps
+ A S D F G H J K L       ← C D E F G A B C D
+Z X                      ← octave down / up
+```
+
+- It starts at C3 and can go from C1 to C5. A small label on the scope shows the octave and the note playing.
+- It plays one note at a time. The newest key wins, and letting go falls back to a key you're still holding, with a slight glide.
+- **Power off:** sound only while you hold a key. **Power on:** the drone keeps going and each key retunes it.
+- The frequency knob turns to each note as you play, and the tuner shows it.
+
 ## How it works
 
 - **Scope:** a Canvas redraws the signal every frame. DUST sets how quickly old frames fade, which is where the trails come from.
