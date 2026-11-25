@@ -43,15 +43,17 @@ Click the page once so it hears your keys, then use your computer keyboard as a 
 Z X                      ← octave down / up
 ```
 
-- It starts at C3 and can go from C1 to C5. A small label on the scope shows the octave and the note playing.
-- It plays one note at a time. The newest key wins, and letting go falls back to a key you're still holding, with a slight glide.
-- **Power off:** sound only while you hold a key. **Power on:** the drone keeps going and each key retunes it.
-- The frequency knob turns to each note as you play, and the tuner shows it.
+- It starts at C3 and can go from C1 to C5. A small label on the scope shows the octave and every note sounding.
+- **Up to 5 notes at once.** Hold keys to play chords; each note fades in and out on its own. A 6th key cuts off the oldest note.
+- **Power off:** notes sound only while you hold them. **Power on:** the last chord you played keeps ringing after you let go (latched), and the next thing you play replaces it. With nothing played yet, it's the plain drone.
+- Chords stay at about the same loudness as a single note. BURN works on the whole mix, so pushing it on a chord gets crunchy.
+- The frequency knob and tuner follow your newest note. Turning the knob by hand shifts the whole chord; the next phrase starts back in tune.
+- Some laptop keyboards can't register certain 3+ key combinations at once (ghosting). If a chord drops a note, that's the keyboard hardware.
 
 ## How it works
 
 - **Scope:** a Canvas redraws the signal every frame. DUST sets how quickly old frames fade, which is where the trails come from.
-- **Audio:** an AudioWorklet runs the same signal function on the browser's audio thread, so drawing never interrupts the sound. Parameter changes glide sample by sample to avoid zipper noise. Browsers without AudioWorklet fall back to a ScriptProcessor with a large buffer.
+- **Audio:** an AudioWorklet runs the synth on the browser's audio thread, so drawing never interrupts the sound. It has 8 voice slots (5 playable at once, the rest let released notes fade), each with its own pitch and envelope. Parameter changes glide sample by sample to avoid zipper noise.
 - **Panel:** inline SVG, laid out at the Figma frame's proportions and scaled to fit the window.
 
 ## Credits

@@ -178,7 +178,7 @@
     <div id="tnRead">110.0 Hz · +0¢</div>
   </div>
 </div>
-<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength <br><b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; <b>dice</b> or <b>R</b> randomizes &nbsp;·&nbsp; switch on for sound<br><b>A–L</b> play notes, <b>W E T Y U O</b> sharps &nbsp;·&nbsp; <b>Z</b> / <b>X</b> octave down / up &nbsp;·&nbsp; click the page first so it hears your keys</div>
+<div id="hint"><b>drag</b> or <b>scroll</b> knobs &nbsp;·&nbsp; <b>click</b> a slot to cast a harmonic, <b>drag</b> it for strength <br><b>shift</b> for fine tuning &nbsp;·&nbsp; <b>double-click</b> resets &nbsp;·&nbsp; <b>dice</b> or <b>R</b> randomizes &nbsp;·&nbsp; switch on for sound<br><b>A–L</b> play notes (up to 5 at once), <b>W E T Y U O</b> sharps &nbsp;·&nbsp; <b>Z</b> / <b>X</b> octave down / up &nbsp;·&nbsp; click the page first so it hears your keys</div>
 </div></div>
 
 <script>
@@ -359,8 +359,11 @@ function setPower(v) {
   stage.classList.toggle('on', on);
   tg.setAttribute('aria-checked', on);
   $('tgLabel').textContent = on ? 'on' : 'off';
+  latched = on ? held.map(h => ({ midi: h.midi, id: h.id })) : [];   // keys already down become the latch
   updateLive();
-  wantSound() ? startAudio() : stopAudio();
+  if (on) startAudio();
+  postParams();
+  if ($('keys').classList.contains('show')) showKeys();
 }
 tg.addEventListener('click', () => setPower(!on));
 tg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPower(!on); } });
@@ -398,44 +401,63 @@ addEventListener('keydown', e => {
   if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) randomize();
 });
 
-// ---------- computer keyboard as a MIDI keyboard ----------
+// ---------- computer keyboard: up to 5 voices ----------
 // Physical key positions (e.code), so it works on any layout. A = C, W = C#, ... L = D above.
 const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7,
                  KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13, KeyL: 14 };
 const OCT_MIN = 1, OCT_MAX = 5;        // keeps every key inside the frequency knob's range
-let octave = 3, keysTimer = null;
+const MAX_VOICES = 5;
+let octave = 3, keysTimer = null, latched = [], anchorMidi = null, nextId = 1;
 const midiName = m => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+const knobHz = () => 110 * cycles();
+const knobFor = hz => clamp(.35 + Math.log2(hz / 110) / 6);
+
+// What should be sounding: held keys (power off), the latched chord (power on),
+// or the plain drone when power is on and nothing has been played yet.
+function activeVoices() {
+  const k = knobHz(), notes = on ? latched : held;
+  if (!notes.length) return on ? [{ id: 'drone', hz: k }] : [];
+  const bend = anchorMidi === null ? 1 : k / midiHz(anchorMidi);   // turning the knob shifts the whole chord
+  return notes.map(n => ({ id: 'n' + n.id, hz: midiHz(n.midi) * bend }));
+}
+
 function showKeys() {
-  const lo = (octave + 1) * 12, el = $('keys');
+  const lo = (octave + 1) * 12, el = $('keys'), notes = on ? latched : held;
+  const names = [...notes].sort((a, b) => a.midi - b.midi).map(n => midiName(n.midi)).join(' ');
   el.innerHTML = `KEYS · OCT <b>${octave}</b> · ${midiName(lo)}–${midiName(lo + 14)}` +
-    (held.length ? ` · ♪ <b>${midiName(held[held.length - 1].midi)}</b>` : '');
+    (notes.length ? ` · ♪ <b>${names}</b>` + (on && !held.length ? ' · latched' : '') : '');
   el.classList.add('show');
   clearTimeout(keysTimer);
-  if (!held.length) keysTimer = setTimeout(() => el.classList.remove('show'), 1600);
+  if (!held.length) keysTimer = setTimeout(() => el.classList.remove('show'), 2000);
 }
-function playMidi(m) {
-  const hz = 440 * Math.pow(2, (m - 69) / 12);
-  setters.freq(clamp(.35 + Math.log2(hz / 110) / 6));   // turns the frequency knob to the note
-  postParams();
+// Point the frequency knob at a note, keeping any bend the knob has put on the chord.
+function aimKnob(midi) {
+  const bend = anchorMidi === null ? 1 : knobHz() / midiHz(anchorMidi);
+  anchorMidi = midi;
+  setters.freq(knobFor(midiHz(midi) * bend));
 }
 function noteOn(code) {
+  const fresh = !held.length;
+  if (fresh) {
+    anchorMidi = null;                   // a new phrase starts in tune
+    if (on) latched = [];                // and replaces the latched chord
+  }
   const i = held.findIndex(h => h.code === code);
   if (i >= 0) held.splice(i, 1);
-  const midi = (octave + 1) * 12 + KEYMAP[code];
-  held.push({ code, midi });
-  playMidi(midi);
-  updateLive();
-  startAudio(0.008);
-  showKeys();
+  const midi = (octave + 1) * 12 + KEYMAP[code], id = nextId++;
+  held.push({ code, midi, id });
+  if (held.length > MAX_VOICES) held.shift();          // voice stealing: the oldest note gives way
+  if (on) { latched.push({ midi, id }); if (latched.length > MAX_VOICES) latched.shift(); }
+  aimKnob(midi);
+  updateLive(); startAudio(); postParams(); showKeys();
 }
 function noteOff(code) {
   const i = held.findIndex(h => h.code === code);
   if (i < 0) return;
-  held.splice(i, 1);
-  if (held.length) playMidi(held[held.length - 1].midi);   // fall back to the key still held
-  updateLive();
-  if (!wantSound()) stopAudio(0.07, 3000);
-  showKeys();
+  const [gone] = held.splice(i, 1);
+  if (held.length && gone.midi === anchorMidi) aimKnob(held[held.length - 1].midi);
+  updateLive(); postParams(); showKeys();
 }
 addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -455,70 +477,102 @@ addEventListener('blur', () => { while (held.length) noteOff(held[held.length - 
 // ---------- signal ----------
 const cycles = () => Math.pow(2, (P.freq - .35) * 6);   // 35% = one cycle across the screen
 
-function harmSet(hz, sr) {
+function harmSet() {
   const ks = [], ws = []; let norm = 1;
   for (let i = 0; i < 14; i++) {
     if (!slotOn[i] || slotLev[i] <= 0) continue;
-    const k = i + 2;
-    if (sr && hz * k > sr * 0.45) continue;               // avoid aliasing in audio
     const w = slotLev[i] * 0.85 / (1 + i * 0.12);
-    ks.push(k); ws.push(w); norm += w * 0.6;
+    ks.push(i + 2); ws.push(w); norm += w * 0.6;
   }
   return { ks, ws, norm, n: ks.length };
 }
-
-function sample(ph, t, noise, H) {
+// One voice before the shared effects: harmonics, EARTH, AIR.
+function voiceSig(ph, t, H) {
   let s = Math.sin(ph);
   for (let j = 0; j < H.n; j++) s += H.ws[j] * Math.sin(H.ks[j] * ph);
   s /= H.norm;
   s += (P.earth - .5) * 2 * 0.55 * Math.sin(ph * 0.5);
   const a = P.air * P.air;
   if (a > 0) s += a * 0.35 * Math.sin(ph * 13 + t * 9) * (0.6 + 0.4 * Math.sin(t * 3.1));
-  s += P.rust * P.rust * 0.6 * noise;
-  const x = s * P.amp * 2;
-  const d = 0.02 + Math.pow(P.burn, 3) * 10;
+  return s;
+}
+// The mix after the shared effects: RUST, amplitude, BURN.
+function shape(v, noise) {
+  v += P.rust * P.rust * 0.6 * noise;
+  const x = v * P.amp * 2, d = 0.02 + Math.pow(P.burn, 3) * 10;
   return Math.tanh(x * d) / Math.tanh(d);
 }
 
 // ---------- audio ----------
-// The DSP runs on the audio thread (AudioWorklet), so screen drawing can't starve it.
+// Runs on the audio thread (AudioWorklet), so drawing can't starve it. Up to 8 voice slots:
+// 5 can be held at once, the rest let released notes fade out.
 const WORKLET_SRC = `
-const TAU = Math.PI * 2;
+const TAU = Math.PI * 2, SLOTS = 8, KEYS = ['amp','rust','earth','air','dust','width','flux','burn'];
 class SpellSpeaker extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    this.p = null; this.phL = 0; this.phR = 0; this.t = 0; this.lpL = 0; this.lpR = 0;
-    this.s = null;                       // smoothed params
-    this.port.onmessage = e => { this.p = e.data; if (!this.s) this.s = Object.assign({}, e.data); };
+    this.p = null; this.s = null; this.t = 0; this.lpL = 0; this.lpR = 0; this.gn = 1; this.age = 0;
+    this.slots = [];
+    for (let i = 0; i < SLOTS; i++) this.slots.push({ id: null, gate: false, env: 0, hz: 0, tHz: 0, phL: 0, phR: 0, age: 0 });
+    this.att = 1 - Math.exp(-1 / (0.006 * sampleRate));   // ~6 ms attack
+    this.rel = 1 - Math.exp(-1 / (0.12 * sampleRate));    // ~120 ms release
+    this.port.onmessage = e => this.update(e.data);
     const init = options && options.processorOptions && options.processorOptions.params;
-    if (init) { this.p = init; this.s = Object.assign({}, init); }
+    if (init) this.update(init);
+  }
+  update(p) {
+    this.p = p;
+    if (!this.s) this.s = Object.assign({}, p);
+    const ids = new Set();
+    for (const v of p.voices) {
+      ids.add(v.id);
+      let sl = this.slots.find(x => x.id === v.id);
+      if (!sl) {
+        sl = this.slots.filter(x => !x.gate).sort((a, b) => a.env - b.env)[0]
+          || this.slots.slice().sort((a, b) => a.age - b.age)[0];
+        sl.id = v.id; sl.hz = v.hz; sl.age = ++this.age;
+      }
+      sl.tHz = v.hz; sl.gate = true;
+    }
+    for (const sl of this.slots) if (sl.id !== null && !ids.has(sl.id)) sl.gate = false;
   }
   process(inputs, outputs) {
-    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length;
-    const p = this.p;
+    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length, p = this.p;
     if (!p) { L.fill(0); if (R !== L) R.fill(0); return true; }
-    const s = this.s, sr = sampleRate, keys = ['amp','hz','rust','earth','air','dust','width','flux','burn'];
-    // harmonics, dropping any that would alias
+    const s = this.s, sr = sampleRate, wrap = TAU * 2;
+    let maxHz = 0;
+    for (const sl of this.slots) if (sl.gate || sl.env > 1e-4) maxHz = Math.max(maxHz, sl.tHz);
     const ks = [], ws = []; let norm = 1;
     for (let j = 0; j < p.ks.length; j++) {
-      if (p.hz * p.ks[j] > sr * 0.45) continue;
+      if (maxHz * p.ks[j] > sr * 0.45) continue;          // drop harmonics that would alias
       ks.push(p.ks[j]); ws.push(p.ws[j]); norm += p.ws[j] * 0.6;
     }
     if (s.norm === undefined) s.norm = norm;
-    const wrap = TAU * 2;
     for (let i = 0; i < n; i++) {
-      // glide every parameter so knob moves never step
-      for (let k = 0; k < keys.length; k++) { const key = keys[k]; s[key] += (p[key] - s[key]) * 0.0015; }
+      for (let k = 0; k < KEYS.length; k++) { const key = KEYS[k]; s[key] += (p[key] - s[key]) * 0.0015; }
       s.norm += (norm - s.norm) * 0.0015;
       this.t += 1 / sr;
-      const t = this.t, f = (s.flux - .5) * 2;
-      const m = 1 + Math.abs(f) * 0.025 * Math.sin(TAU * 5.5 * t);
-      this.phL += TAU * s.hz * m / sr;
-      this.phR += TAU * s.hz * m * (1 + s.width * 0.015) / sr;
-      if (this.phL > wrap) this.phL -= wrap;
-      if (this.phR > wrap) this.phR -= wrap;
-      const a = this.sample(this.phL, t, s, ks, ws);
-      const b = this.sample(this.phR, t, s, ks, ws);
+      const t = this.t, f = (s.flux - .5) * 2, stereo = s.width > 0.002;
+      const m = 1 + Math.abs(f) * 0.025 * Math.sin(TAU * 5.5 * t), det = 1 + s.width * 0.015;
+      let sumL = 0, sumR = 0, envSum = 0;
+      for (let v = 0; v < SLOTS; v++) {
+        const sl = this.slots[v];
+        if (!sl.gate && sl.env < 1e-5) { if (sl.id !== null) { sl.id = null; sl.env = 0; } continue; }
+        sl.env += ((sl.gate ? 1 : 0) - sl.env) * (sl.gate ? this.att : this.rel);
+        sl.hz += (sl.tHz - sl.hz) * 0.0015;
+        sl.phL += TAU * sl.hz * m / sr;
+        sl.phR += TAU * sl.hz * m * det / sr;
+        if (sl.phL > wrap) sl.phL -= wrap;
+        if (sl.phR > wrap) sl.phR -= wrap;
+        const a = this.voice(sl.phL, t, s, ks, ws);
+        sumL += sl.env * a;
+        sumR += sl.env * (stereo ? this.voice(sl.phR, t, s, ks, ws) : a);
+        envSum += sl.env;
+      }
+      this.gn += (Math.sqrt(Math.max(1, envSum)) - this.gn) * 0.002;   // chords get headroom, not just louder
+      const nz = Math.min(1, envSum);
+      const a = this.shape(sumL / this.gn, s, (Math.random() * 2 - 1) * nz);
+      const b = stereo ? this.shape(sumR / this.gn, s, (Math.random() * 2 - 1) * nz) : a;
       const kk = 1 - s.dust * 0.85;
       this.lpL += (a - this.lpL) * kk;
       this.lpR += ((a + (b - a) * s.width) - this.lpR) * kk;
@@ -527,97 +581,46 @@ class SpellSpeaker extends AudioWorkletProcessor {
     }
     return true;
   }
-  sample(ph, t, s, ks, ws) {
+  voice(ph, t, s, ks, ws) {
     let v = Math.sin(ph);
     for (let j = 0; j < ks.length; j++) v += ws[j] * Math.sin(ks[j] * ph);
     v /= s.norm;
     v += (s.earth - .5) * 2 * 0.55 * Math.sin(ph * 0.5);
     const a = s.air * s.air;
     if (a > 0) v += a * 0.35 * Math.sin(ph * 13 + t * 9) * (0.6 + 0.4 * Math.sin(t * 3.1));
-    v += s.rust * s.rust * 0.6 * (Math.random() * 2 - 1);
-    const x = v * s.amp * 2;
-    const d = 0.02 + Math.pow(s.burn, 3) * 10;
+    return v;
+  }
+  shape(v, s, noise) {
+    v += s.rust * s.rust * 0.6 * noise;
+    const x = v * s.amp * 2, d = 0.02 + Math.pow(s.burn, 3) * 10;
     return Math.tanh(x * d) / Math.tanh(d);
   }
 }
 registerProcessor('spell-speaker', SpellSpeaker);
 `;
 
-let ac = null, gain = null, node = null, mode = null, building = null, suspendTimer = null;
-
+let ac = null, gain = null, node = null;
 function audioParams() {
-  const ks = [], ws = [];
-  for (let i = 0; i < 14; i++) {
-    if (!slotOn[i] || slotLev[i] <= 0) continue;
-    ks.push(i + 2); ws.push(slotLev[i] * 0.85 / (1 + i * 0.12));
-  }
-  return { amp: P.amp, hz: 110 * cycles(), rust: P.rust, earth: P.earth, air: P.air, dust: P.dust,
-           width: P.width, flux: P.flux, burn: P.burn, ks, ws };
+  const H = harmSet();
+  return { amp: P.amp, rust: P.rust, earth: P.earth, air: P.air, dust: P.dust, width: P.width,
+           flux: P.flux, burn: P.burn, ks: H.ks, ws: H.ws, voices: activeVoices() };
 }
-function postParams() { if (mode === 'worklet' && node) node.port.postMessage(audioParams()); }
-
-// Fallback for browsers without AudioWorklet: main-thread processor with a large buffer.
-let phL = 0, phR = 0, at = 0, lpL = 0, lpR = 0;
-function process(e) {
-  const L = e.outputBuffer.getChannelData(0), R = e.outputBuffer.getChannelData(1);
-  const sr = ac.sampleRate, n = L.length;
-  const hz = 110 * cycles(), H = harmSet(hz, sr);
-  const f = (P.flux - .5) * 2, vib = Math.abs(f) * 0.025, det = 1 + P.width * 0.015, w = P.width;
-  const k = 1 - P.dust * 0.85, wrap = TAU * 2;
-  for (let i = 0; i < n; i++) {
-    at += 1 / sr;
-    const m = 1 + vib * Math.sin(TAU * 5.5 * at);
-    phL += TAU * hz * m / sr; phR += TAU * hz * m * det / sr;
-    if (phL > wrap) phL -= wrap;
-    if (phR > wrap) phR -= wrap;
-    const a = sample(phL, at, Math.random() * 2 - 1, H);
-    const b = sample(phR, at, Math.random() * 2 - 1, H);
-    lpL += (a - lpL) * k;
-    lpR += ((a + (b - a) * w) - lpR) * k;
-    L[i] = Math.max(-1.5, Math.min(1.5, lpL));
-    R[i] = Math.max(-1.5, Math.min(1.5, lpR));
-  }
-}
-
+function postParams() { if (node) node.port.postMessage(audioParams()); }
 async function buildGraph() {
-  ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-  gain = ac.createGain(); gain.gain.value = 0; gain.connect(ac.destination);
-  try {
-    const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
-    await ac.audioWorklet.addModule(url);
-    node = new AudioWorkletNode(ac, 'spell-speaker', { numberOfInputs: 0, outputChannelCount: [2],
-      processorOptions: { params: audioParams() } });
-    mode = 'worklet';
-    postParams();
-  } catch (err) {
-    node = ac.createScriptProcessor(4096, 1, 2);
-    node.onaudioprocess = process;
-    mode = 'script';
-  }
+  ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  gain = ac.createGain(); gain.gain.value = 0.18; gain.connect(ac.destination);
+  const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+  await ac.audioWorklet.addModule(url);
+  node = new AudioWorkletNode(ac, 'spell-speaker', { numberOfInputs: 0, outputChannelCount: [2],
+    processorOptions: { params: audioParams() } });
   node.connect(gain);
 }
-
-const wantSound = () => on || held.length > 0;
-function startAudio(tc = 0.04) {
+// Called from a click or key press, so autoplay rules allow it. Notes fade in and out
+// inside the worklet, so the context just keeps running once started.
+function startAudio() {
   try {
-    clearTimeout(suspendTimer);
-    if (!ac) building = buildGraph();
-    ac.resume();                                   // inside the click, so autoplay rules allow it
-    building.then(() => {
-      if (!wantSound()) return;
-      postParams();
-      gain.gain.cancelScheduledValues(ac.currentTime);
-      gain.gain.setTargetAtTime(0.18, ac.currentTime, tc);
-    }).catch(() => {});
-  } catch (err) { /* audio unavailable: visuals still run */ }
-}
-function stopAudio(tc = 0.03, idle = 300) {
-  if (!ac || !gain) return;
-  try {
-    clearTimeout(suspendTimer);
-    gain.gain.cancelScheduledValues(ac.currentTime);
-    gain.gain.setTargetAtTime(0, ac.currentTime, tc);
-    suspendTimer = setTimeout(() => { if (!wantSound()) ac.suspend(); }, idle);
+    if (!ac) buildGraph().catch(() => {});   /* no AudioWorklet: visuals still run */
+    ac && ac.resume();
   } catch (err) {}
 }
 
@@ -625,12 +628,15 @@ function stopAudio(tc = 0.03, idle = 300) {
 let dpr = 1, scroll = 0, tv = 0, ghost = 0, seed = 0, last = performance.now();
 const hn = i => { const s = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453; return (s - Math.floor(s)) * 2 - 1; };
 
-function trace(H, cyc, phOff, mult, alpha, lw, blur) {
+function trace(V, H, cyc, phOff, mult, alpha, lw, blur) {
   const x0 = 4, x1 = SW - 4, span = x1 - x0, mid = SH / 2, sc = mid * 0.9;
+  const g = 1 / Math.sqrt(Math.max(1, V.length));
   ctx.beginPath();
   for (let x = x0; x <= x1; x += 1) {
     const ph = scroll + phOff + TAU * cyc * mult * (x - x0) / span;
-    const y = mid - sample(ph, tv, hn(x), H) * sc;
+    let v = 0;
+    for (let j = 0; j < V.length; j++) v += voiceSig(ph * V[j], tv, H);   // V = pitch ratios to the knob
+    const y = mid - shape(v * g, hn(x)) * sc;
     x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
   ctx.strokeStyle = `rgba(234,130,42,${alpha})`;
@@ -648,13 +654,14 @@ function drawScope() {
   ctx.fillRect(0, 0, SW, SH);
   ctx.globalCompositeOperation = 'source-over';
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  const H = harmSet(), f = (P.flux - .5) * 2;
+  const H = harmSet(), f = (P.flux - .5) * 2, k = knobHz();
+  let V = activeVoices().map(v => v.hz / k);
+  if (!V.length) V = [1];                // idle: preview the knob's pitch
   const cyc = cycles() * (live ? 1 + Math.abs(f) * 0.02 * Math.sin(tv * 5.5) : 1);
   const ga = Math.pow(P.width, 1.6) * 0.75;
-  if (ga > 0.01) trace(H, cyc, P.width * 1.4 + ghost, 1 + P.width * 0.04, ga, 3, 6);
-  trace(H, cyc, 0, 1, 1, 4.6, live ? 14 : 9);
+  if (ga > 0.01) trace(V, H, cyc, P.width * 1.4 + ghost, 1 + P.width * 0.04, ga, 3, 6);
+  trace(V, H, cyc, 0, 1, 1, 4.6, live ? 14 : 9);
 }
-
 
 // ---------- tuner ----------
 const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
